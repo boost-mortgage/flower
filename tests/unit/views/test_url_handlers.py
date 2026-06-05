@@ -8,8 +8,16 @@ from tests.unit import AsyncHTTPTestCase
 
 
 class UrlsTests(AsyncHTTPTestCase):
+    def test_home_url(self):
+        r = self.get('/home')
+        self.assertEqual(200, r.code)
+
     def test_workers_url(self):
         r = self.get('/workers')
+        self.assertEqual(200, r.code)
+
+    def test_aws_url(self):
+        r = self.get('/aws')
         self.assertEqual(200, r.code)
 
     def test_root_url(self):

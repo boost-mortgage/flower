@@ -5,49 +5,115 @@
 {% end %}
 
 {% block container %}
-<div class="container-fluid mt-3">
-  <figure class="table-responsive">
-    <table id="workers-table" class="table table-bordered table-striped table-hover w-100">
-      <thead>
-        <tr>
-          <th>Worker</th>
-          <th class="text-center">Status</th>
-          <th class="text-center">Active</th>
-          <th class="text-center">Processed</th>
-          <th class="text-center">Failed</th>
-          <th class="text-center">Succeeded</th>
-          <th class="text-center">Retried</th>
-          <th class="text-center">Load Average</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for name, info in workers.items() %}
-        <tr id="{{ url_escape(name) }}">
-          <td>{{ name }}</td>
-          <td>{{ info.get('status', None) }}</td>
-          <td>{{ info.get('active', 0) or 0 }}</td>
-          <td>{{ info.get('task-received', 0) }}</td>
-          <td>{{ info.get('task-failed', 0) }}</td>
-          <td>{{ info.get('task-succeeded', 0) }}</td>
-          <td>{{ info.get('task-retried', 0) }}</td>
-          <td>{{ humanize(info.get('loadavg', 'N/A')) }}</td>
-        </tr>
-        {% end %}
-      </tbody>
-      <tfoot>
-        <tr>
-          <th>Total</th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-          <th></th>
-        </tr>
-      </tfoot>
-    </table>
-  </figure>
+<div class="container-fluid mt-3 workers-page">
+  {% set online_workers = sum(1 for info in workers.values() if info.get('status', False)) %}
+  {% set active_tasks = sum((info.get('active', 0) or 0) for info in workers.values()) %}
+  {% set reserved_scheduled_tasks = sum((info.get('pending', 0) or 0) for info in workers.values()) %}
+  {% set failed_tasks = sum(info.get('task-failed', 0) for info in workers.values()) %}
+
+  <div class="page-hero mb-3">
+    <div>
+      <div class="eyebrow">Cluster overview</div>
+      <h1 class="page-title">Workers</h1>
+      <p class="page-subtitle mb-0">Monitor worker health, broker queue depth, throughput, and reserved tasks in real time.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap justify-content-end">
+      <button id="ecs-scale-worker-service" class="btn btn-primary btn-modern" type="button">Scale ECS worker service</button>
+      <button id="worker-refresh-all" class="btn btn-primary btn-modern" type="button">Refresh workers</button>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3 worker-summary">
+    <div class="col-6 col-lg">
+      <div class="card worker-summary-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Workers Online</div>
+          <div class="summary-value"><span id="workers-online-summary">{{ online_workers }} / {{ len(workers) }}</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg">
+      <div class="card worker-summary-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Active Tasks</div>
+          <div id="active-tasks-summary" class="summary-value">{{ active_tasks }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg">
+      <div class="card worker-summary-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Queued Tasks</div>
+          <div id="queued-tasks-summary" class="summary-value">{{ queued_tasks }}</div>
+          <div class="summary-caption"><span id="queued-queues-summary">{{ len(active_queues) }}</span> queues</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg">
+      <div class="card worker-summary-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Reserved/Scheduled</div>
+          <div id="reserved-scheduled-tasks-summary" class="summary-value">{{ reserved_scheduled_tasks }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg">
+      <div class="card worker-summary-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Failed Tasks</div>
+          <div id="failed-tasks-summary" class="summary-value">{{ failed_tasks }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="workers-table-card">
+    <figure class="table-responsive mb-0">
+      <table id="workers-table" class="table table-striped table-hover w-100 mb-0">
+        <thead>
+          <tr>
+            <th>Worker</th>
+            <th class="text-center">Status</th>
+            <th class="text-center">Active</th>
+            <th class="text-center">Reserved/Scheduled</th>
+            <th class="text-center">Processed</th>
+            <th class="text-center">Failed</th>
+            <th class="text-center">Succeeded</th>
+            <th class="text-center">Retried</th>
+            <th class="text-center">Load Average</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for name, info in workers.items() %}
+          <tr id="{{ url_escape(name) }}">
+            <td>{{ name }}</td>
+            <td>{{ info.get('status', None) }}</td>
+            <td>{{ info.get('active', 0) or 0 }}</td>
+            <td>{{ info.get('pending', 0) or 0 }}</td>
+            <td>{{ info.get('task-received', 0) }}</td>
+            <td>{{ info.get('task-failed', 0) }}</td>
+            <td>{{ info.get('task-succeeded', 0) }}</td>
+            <td>{{ info.get('task-retried', 0) }}</td>
+            <td>{{ humanize(info.get('loadavg', 'N/A')) }}</td>
+          </tr>
+          {% end %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>Total</th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+          </tr>
+        </tfoot>
+      </table>
+    </figure>
+  </div>
 </div>
 {% end %}
 

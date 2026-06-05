@@ -83,6 +83,9 @@ var flower = (function () {
             },
             success: function (data) {
                 show_alert(data.message || 'Refreshed All Workers', 'success');
+                if ($.fn.DataTable.isDataTable('#workers-table')) {
+                    $('#workers-table').DataTable().ajax.reload(null, false);
+                }
             },
             error: function (data) {
                 show_alert(data.responseText, "danger");
@@ -366,6 +369,34 @@ var flower = (function () {
         return parseInt(a, 10) + parseInt(b, 10);
     }
 
+    function numberOrZero(value) {
+        return parseInt(value || 0, 10) || 0;
+    }
+
+    function updateWorkerSummary(workers, queuedTasks, queues) {
+        var totalWorkers = workers.length,
+            onlineWorkers = 0,
+            activeTasks = 0,
+            reservedScheduledTasks = 0,
+            failedTasks = 0;
+
+        workers.forEach(function (worker) {
+            if (worker.status) {
+                onlineWorkers += 1;
+            }
+            activeTasks += numberOrZero(worker.active);
+            reservedScheduledTasks += numberOrZero(worker.pending);
+            failedTasks += numberOrZero(worker['task-failed']);
+        });
+
+        $('#workers-online-summary').text(onlineWorkers + ' / ' + totalWorkers);
+        $('#active-tasks-summary').text(activeTasks);
+        $('#queued-tasks-summary').text(numberOrZero(queuedTasks));
+        $('#queued-queues-summary').text((queues || []).length);
+        $('#reserved-scheduled-tasks-summary').text(reservedScheduledTasks);
+        $('#failed-tasks-summary').text(failedTasks);
+    }
+
     function format_time(timestamp) {
         var time = $('#time').val(),
             prefix = time.startsWith('natural-time') ? 'natural-time' : 'time',
@@ -426,6 +457,8 @@ var flower = (function () {
             return;
         }
 
+        var workersInitialRefresh = true;
+
         $('#workers-table').DataTable({
             rowId: 'name',
             searching: true,
@@ -439,17 +472,30 @@ var flower = (function () {
                 info: 'Showing _START_ to _END_ of _TOTAL_ workers',
                 infoFiltered: '(filtered from _MAX_ total workers)'
             },
-            ajax: url_prefix() + '/workers?json=1',
+            ajax: {
+                url: url_prefix() + '/workers',
+                data: function (data) {
+                    data.json = 1;
+                    if (workersInitialRefresh) {
+                        data.refresh = 1;
+                        workersInitialRefresh = false;
+                    }
+                },
+                dataSrc: function (json) {
+                    updateWorkerSummary(json.data || [], json.queued_tasks, json.active_queues);
+                    return json.data || [];
+                }
+            },
             order: [
                 [1, "des"]
             ],
             footerCallback: function( tfoot, data, start, end, display ) {
                 var api = this.api();
-                var columns = {2:"STARTED", 3:"", 4:"FAILURE", 5:"SUCCESS", 6:"RETRY"};
+                var columns = {2:"STARTED", 3:null, 4:"", 5:"FAILURE", 6:"SUCCESS", 7:"RETRY"};
                 for (const [column, state] of Object.entries(columns)) {
                     var total = api.column(column).data().reduce(sum, 0);
                     var footer = total;
-                    if (total !== 0) {
+                    if (total !== 0 && state !== null) {
                         let queryParams = (state !== '' ? `?state=${state}` : '');
                         footer = '<a href="' + url_prefix() + '/tasks' + queryParams + '">' + total + '</a>';
                     }
@@ -470,9 +516,9 @@ var flower = (function () {
                 width: "10%",
                 render: function (data, type, full, meta) {
                     if (data) {
-                        return '<span class="badge bg-success">Online</span>';
+                        return '<span class="badge rounded-pill bg-success">Online</span>';
                     } else {
-                        return '<span class="badge bg-secondary">Offline</span>';
+                        return '<span class="badge rounded-pill bg-secondary">Offline</span>';
                     }
                 }
             }, {
@@ -483,30 +529,36 @@ var flower = (function () {
                 defaultContent: 0
             }, {
                 targets: 3,
-                data: 'task-received',
+                data: 'pending',
                 className: "text-center",
                 width: "10%",
                 defaultContent: 0
             }, {
                 targets: 4,
-                data: 'task-failed',
+                data: 'task-received',
                 className: "text-center",
                 width: "10%",
                 defaultContent: 0
             }, {
                 targets: 5,
-                data: 'task-succeeded',
+                data: 'task-failed',
                 className: "text-center",
                 width: "10%",
                 defaultContent: 0
             }, {
                 targets: 6,
-                data: 'task-retried',
+                data: 'task-succeeded',
                 className: "text-center",
                 width: "10%",
                 defaultContent: 0
             }, {
                 targets: 7,
+                data: 'task-retried',
+                className: "text-center",
+                width: "10%",
+                defaultContent: 0
+            }, {
+                targets: 8,
                 data: 'loadavg',
                 width: "10%",
                 className: "text-center text-nowrap",
@@ -688,6 +740,23 @@ var flower = (function () {
             }, ],
         });
 
+    });
+
+    $('#ecs-scale-worker-service').on('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        $.ajax({
+            type: 'POST',
+            url: url_prefix() + '/api/aws/ecs/scale-worker-service',
+            dataType: 'json',
+            success: function (data) {
+                show_alert(data.message, "success");
+            },
+            error: function (data) {
+                show_alert(data.responseText, "danger");
+            }
+        });
     });
 
 }(jQuery));

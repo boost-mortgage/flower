@@ -2,10 +2,12 @@ import os
 
 from tornado.web import StaticFileHandler, url
 
-from .api import control, tasks, workers
+from .api import aws as aws_api, control, tasks, workers
 from .utils import gen_cookie_secret
 from .views import auth, monitor
+from .views.aws import AwsView
 from .views.broker import BrokerView
+from .views.home import HomeView
 from .views.error import NotFoundErrorHandler
 from .views.tasks import TasksDataTable, TasksView, TaskView
 from .views.workers import WorkersView, WorkerView
@@ -21,13 +23,15 @@ settings = dict(
 
 handlers = [
     # App
-    url(r"/", WorkersView, name='main'),
+    url(r"/", HomeView, name='main'),
+    url(r"/home", HomeView, name='home'),
     url(r"/workers", WorkersView, name='workers'),
     url(r"/worker/(.+)", WorkerView, name='worker'),
     url(r"/task/(.+)", TaskView, name='task'),
     url(r"/tasks", TasksView, name='tasks'),
     url(r"/tasks/datatable", TasksDataTable),
     url(r"/broker", BrokerView, name='broker'),
+    url(r"/aws", AwsView, name='aws'),
     # Worker API
     (r"/api/workers", workers.ListWorkers),
     (r"/api/worker/shutdown/(.+)", control.WorkerShutDown),
@@ -42,6 +46,7 @@ handlers = [
     (r"/api/tasks", tasks.ListTasks),
     (r"/api/task/types", tasks.ListTaskTypes),
     (r"/api/queues/length", tasks.GetQueueLengths),
+    (r"/api/aws/ecs/scale-worker-service", aws_api.ScaleEcsWorkerService),
     (r"/api/task/info/(.*)", tasks.TaskInfo),
     (r"/api/task/apply/(.+)", tasks.TaskApply),
     (r"/api/task/async-apply/(.+)", tasks.TaskAsyncApply),

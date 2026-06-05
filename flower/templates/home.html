@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block navbar %}
+{% module Template("navbar.html", active_tab="home")%}
+{% end %}
+
+{% block container %}
+{% set totals = overview['totals'] %}
+<div class="container-fluid mt-3 home-page">
+  <div class="page-hero mb-3">
+    <div>
+      <div class="eyebrow">Global overview</div>
+      <h1 class="page-title">Home</h1>
+      <p class="page-subtitle mb-0">A cluster-wide view of task state across all workers.</p>
+    </div>
+    <a class="btn btn-primary btn-modern" href="{{ reverse_url('workers') }}?refresh=1">Refresh cluster</a>
+  </div>
+
+  <div class="row g-3 mb-3 overview-summary">
+    <div class="col-6 col-xl-3">
+      <div class="card metric-card h-100 metric-card-primary">
+        <div class="card-body">
+          <div class="summary-label">Workers Online</div>
+          <div class="summary-value">{{ totals['online_workers'] }} / {{ totals['workers'] }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="card metric-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Running</div>
+          <div class="summary-value">{{ totals['running'] }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="card metric-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Reserved</div>
+          <div class="summary-value">{{ totals['reserved'] }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="card metric-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Scheduled</div>
+          <div class="summary-value">{{ totals['scheduled'] }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="card metric-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Pending</div>
+          <div class="summary-value">{{ totals['pending'] }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="card metric-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Processed</div>
+          <div class="summary-value">{{ totals['processed'] }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="card metric-card h-100 metric-card-danger">
+        <div class="card-body">
+          <div class="summary-label">Failed</div>
+          <div class="summary-value">{{ totals['failed'] }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="card metric-card h-100">
+        <div class="card-body">
+          <div class="summary-label">Succeeded</div>
+          <div class="summary-value">{{ totals['succeeded'] }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overview-panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Worker breakdown</h2>
+        <p class="panel-subtitle">Running tasks plus pending reservations and schedules by worker.</p>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover overview-table mb-0">
+        <thead>
+          <tr>
+            <th>Worker</th>
+            <th class="text-center">Status</th>
+            <th class="text-center">Running</th>
+            <th class="text-center">Reserved</th>
+            <th class="text-center">Scheduled</th>
+            <th class="text-center">Pending</th>
+            <th class="text-center">Processed</th>
+            <th class="text-center">Failed</th>
+            <th class="text-center">Succeeded</th>
+            <th class="text-center">Retried</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for worker in overview['workers'] %}
+          <tr>
+            <td><a href="{{ reverse_url('worker', worker['name']) }}">{{ worker['name'] }}</a></td>
+            <td class="text-center">
+              {% if worker['status'] %}
+              <span class="badge rounded-pill bg-success">Online</span>
+              {% else %}
+              <span class="badge rounded-pill bg-secondary">Offline</span>
+              {% end %}
+            </td>
+            <td class="text-center">{{ worker['running'] }}</td>
+            <td class="text-center">{{ worker['reserved'] }}</td>
+            <td class="text-center">{{ worker['scheduled'] }}</td>
+            <td class="text-center">{{ worker['pending'] }}</td>
+            <td class="text-center">{{ worker['processed'] }}</td>
+            <td class="text-center">{{ worker['failed'] }}</td>
+            <td class="text-center">{{ worker['succeeded'] }}</td>
+            <td class="text-center">{{ worker['retried'] }}</td>
+          </tr>
+          {% end %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% end %}

@@ -21,14 +21,16 @@ class WorkersTests(AsyncHTTPTestCase):
         return self.app
 
     def test_default_page(self):
-        r1 = self.get('/')
-        r2 = self.get('/workers')
-        self.assertEqual(r1.body, r2.body)
+        r = self.get('/')
+        self.assertEqual(200, r.code)
+        self.assertIn('Global overview', str(r.body))
 
     def test_no_workers(self):
         r = self.get('/workers')
         self.assertEqual(200, r.code)
         self.assertIn('Load Average', str(r.body))
+        self.assertIn('Queued Tasks', str(r.body))
+        self.assertIn('Reserved/Scheduled', str(r.body))
         self.assertNotIn('<tr id=', str(r.body))
 
     @unittest.skip('disable temporarily')
@@ -54,7 +56,7 @@ class WorkersTests(AsyncHTTPTestCase):
         self.assertEqual(200, r.code)
         self.assertEqual(1, len(table.rows()))
         self.assertTrue(table.get_row('worker1'))
-        self.assertEqual(['worker1', 'False', '0', '0', '0', '0', '0', None],
+        self.assertEqual(['worker1', 'False', '0', '0', '0', '0', '0', '0', None],
                          table.get_row('worker1'))
         self.assertFalse(table.get_row('worker2'))
 
@@ -92,7 +94,7 @@ class WorkersTests(AsyncHTTPTestCase):
         self.assertEqual(200, r.code)
         self.assertEqual(1, len(table.rows()))
         self.assertTrue(table.get_row('worker1'))
-        self.assertEqual(['worker1', 'True', '0', '0', '0', '0', '0', None],
+        self.assertEqual(['worker1', 'True', '0', '0', '0', '0', '0', '0', None],
                          table.get_row('worker1'))
         self.assertFalse(table.get_row('worker2'))
 
@@ -120,9 +122,9 @@ class WorkersTests(AsyncHTTPTestCase):
         self.assertEqual(200, r.code)
         self.assertEqual(2, len(table.rows()))
 
-        self.assertEqual(['worker1', 'True', '0', '1', '0', '0', '0', None],
+        self.assertEqual(['worker1', 'True', '0', '0', '1', '0', '0', '0', None],
                          table.get_row('worker1'))
-        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', None],
+        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', '0', None],
                          table.get_row('worker2'))
 
     def test_task_started(self):
@@ -150,9 +152,9 @@ class WorkersTests(AsyncHTTPTestCase):
         self.assertEqual(200, r.code)
         self.assertEqual(2, len(table.rows()))
 
-        self.assertEqual(['worker1', 'True', '0', '1', '0', '0', '0', None],
+        self.assertEqual(['worker1', 'True', '0', '0', '1', '0', '0', '0', None],
                          table.get_row('worker1'))
-        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', None],
+        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', '0', None],
                          table.get_row('worker2'))
 
     def test_task_succeeded(self):
@@ -182,9 +184,9 @@ class WorkersTests(AsyncHTTPTestCase):
         self.assertEqual(200, r.code)
         self.assertEqual(2, len(table.rows()))
 
-        self.assertEqual(['worker1', 'True', '0', '1', '0', '1', '0', None],
+        self.assertEqual(['worker1', 'True', '0', '0', '1', '0', '1', '0', None],
                          table.get_row('worker1'))
-        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', None],
+        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', '0', None],
                          table.get_row('worker2'))
 
     def test_task_failed(self):
@@ -214,9 +216,9 @@ class WorkersTests(AsyncHTTPTestCase):
         self.assertEqual(200, r.code)
         self.assertEqual(2, len(table.rows()))
 
-        self.assertEqual(['worker1', 'True', '0', '1', '1', '0', '0', None],
+        self.assertEqual(['worker1', 'True', '0', '0', '1', '1', '0', '0', None],
                          table.get_row('worker1'))
-        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', None],
+        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', '0', None],
                          table.get_row('worker2'))
 
     def test_task_retried(self):
@@ -248,9 +250,9 @@ class WorkersTests(AsyncHTTPTestCase):
         self.assertEqual(200, r.code)
         self.assertEqual(2, len(table.rows()))
 
-        self.assertEqual(['worker1', 'True', '0', '1', '1', '0', '1', None],
+        self.assertEqual(['worker1', 'True', '0', '0', '1', '1', '0', '1', None],
                          table.get_row('worker1'))
-        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', None],
+        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', '0', None],
                          table.get_row('worker2'))
 
     def test_tasks(self):
@@ -281,12 +283,32 @@ class WorkersTests(AsyncHTTPTestCase):
         self.assertEqual(200, r.code)
         self.assertEqual(3, len(table.rows()))
 
-        self.assertEqual(['worker1', 'True', '0', '100', '0', '100', '0', None],
+        self.assertEqual(['worker1', 'True', '0', '0', '100', '0', '100', '0', None],
                          table.get_row('worker1'))
-        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', None],
+        self.assertEqual(['worker2', 'True', '0', '0', '0', '0', '0', '0', None],
                          table.get_row('worker2'))
-        self.assertEqual(['worker3', 'True', '0', '23', '13', '10', '0', None],
+        self.assertEqual(['worker3', 'True', '0', '0', '23', '13', '10', '0', None],
                          table.get_row('worker3'))
+
+    def test_pending_tasks(self):
+        state = EventsState()
+        state.get_or_create_worker('worker1')
+        state.event(Event('worker-online', hostname='worker1',
+                          local_received=time.time()))
+        self.app.events.state = state
+        self.app.inspector.workers['worker1'] = {
+            'reserved': [{'id': '1'}, {'id': '2'}],
+            'scheduled': [{'request': {'id': '3'}}],
+        }
+
+        r = self.get('/workers')
+
+        table = HtmlTableParser()
+        table.parse(str(r.body))
+
+        self.assertEqual(200, r.code)
+        self.assertEqual(['worker1', 'True', '0', '3', '0', '0', '0', '0', None],
+                         table.get_row('worker1'))
 
     def test_workers_view_json(self):
         state = EventsState()
@@ -294,11 +316,16 @@ class WorkersTests(AsyncHTTPTestCase):
         state.event(Event('worker-online', hostname='worker1',
                           local_received=time.time()))
         self.app.events.state = state
+        self.app.inspector.workers['worker1'] = {
+            'reserved': [{'id': '1'}, {'id': '2'}],
+            'scheduled': [{'request': {'id': '3'}}],
+        }
 
         res = self.get('/workers?json=1')
         self.assertEqual(200, res.code)
         data = json.loads(res.body)
         self.assertTrue("data" in data)
+        self.assertEqual(3, data['data'][0]['pending'])
 
     def test_workers_view_refresh(self):
         state = EventsState()

@@ -5,8 +5,10 @@ RUN apk add --no-cache ca-certificates tzdata && \
     apk upgrade --no-cache openssl && \
     update-ca-certificates
 
-# Install the required packages
-RUN pip install --no-cache-dir redis flower
+# Install Flower from this checkout so local template/static/view changes are used
+WORKDIR /opt/flower
+COPY . /opt/flower
+RUN pip install --no-cache-dir redis .
 
 # PYTHONUNBUFFERED: Force stdin, stdout and stderr to be totally unbuffered. (equivalent to `python -u`)
 # PYTHONHASHSEED: Enable hash randomization (equivalent to `python -R`)

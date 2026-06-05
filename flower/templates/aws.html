@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block navbar %}
+{% module Template("navbar.html", active_tab="aws")%}
+{% end %}
+
+{% block container %}
+<div class="container-fluid mt-3 aws-page">
+  <div class="page-hero mb-3">
+    <div>
+      <div class="eyebrow">AWS integration</div>
+      <h1 class="page-title">AWS</h1>
+      <p class="page-subtitle mb-0">Configure the ECS service Flower should scale when starting another Celery worker.</p>
+    </div>
+  </div>
+
+  {% if saved %}
+  <div class="alert alert-success" role="alert">AWS ECS settings saved for this Flower process.</div>
+  {% end %}
+
+  {% if errors %}
+  <div class="alert alert-danger" role="alert">
+    <ul class="mb-0">
+      {% for error in errors %}
+      <li>{{ error }}</li>
+      {% end %}
+    </ul>
+  </div>
+  {% end %}
+
+  <div class="aws-config-card">
+    <form method="post" action="{{ reverse_url('aws') }}">
+      <div class="mb-3">
+        <label class="form-label" for="region">AWS region</label>
+        <input class="form-control" id="region" name="region" placeholder="us-east-1" value="{{ aws_config.get('region', '') }}" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="ecs_cluster">ECS cluster</label>
+        <input class="form-control" id="ecs_cluster" name="ecs_cluster" placeholder="my-celery-cluster" value="{{ aws_config.get('ecs_cluster', '') }}" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="ecs_service">ECS service</label>
+        <input class="form-control" id="ecs_service" name="ecs_service" placeholder="celery-worker" value="{{ aws_config.get('ecs_service', '') }}" required>
+      </div>
+      <p class="text-muted mb-3">
+        Credentials are resolved using boto3's default credential chain, such as IAM roles, environment variables, or shared AWS credentials.
+        Settings are stored in memory only and must be re-entered after Flower restarts.
+      </p>
+      <button type="submit" class="btn btn-primary btn-modern">Save AWS settings</button>
+    </form>
+  </div>
+</div>
+{% end %}
