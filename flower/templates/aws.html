@@ -31,20 +31,66 @@
   <div class="aws-config-card">
     <form method="post" action="{{ reverse_url('aws') }}">
       <div class="mb-3">
-        <label class="form-label" for="region">AWS region</label>
-        <input class="form-control" id="region" name="region" placeholder="us-east-1" value="{{ aws_config.get('region', '') }}" required>
+        <label class="form-label">AWS region</label>
+        <input class="form-control" value="us-east-2" disabled>
       </div>
       <div class="mb-3">
         <label class="form-label" for="ecs_cluster">ECS cluster</label>
-        <input class="form-control" id="ecs_cluster" name="ecs_cluster" placeholder="my-celery-cluster" value="{{ aws_config.get('ecs_cluster', '') }}" required>
+        <select class="form-select" id="ecs_cluster" name="ecs_cluster" required>
+          {% if aws_config.get('ecs_cluster', '') %}
+          <option value="{{ aws_config.get('ecs_cluster', '') }}" selected>{{ aws_config.get('ecs_cluster', '') }}</option>
+          {% else %}
+          <option value="" selected>Login with AWS SSO to load clusters</option>
+          {% end %}
+        </select>
       </div>
       <div class="mb-3">
         <label class="form-label" for="ecs_service">ECS service</label>
-        <input class="form-control" id="ecs_service" name="ecs_service" placeholder="celery-worker" value="{{ aws_config.get('ecs_service', '') }}" required>
+        <select class="form-select" id="ecs_service" name="ecs_service" required>
+          {% if aws_config.get('ecs_service', '') %}
+          <option value="{{ aws_config.get('ecs_service', '') }}" selected>{{ aws_config.get('ecs_service', '') }}</option>
+          {% else %}
+          <option value="" selected>Choose a cluster to load services</option>
+          {% end %}
+        </select>
+      </div>
+      <input type="hidden" id="auth_method" name="auth_method" value="sso">
+      <div class="border rounded p-3 mb-3" id="aws-sso-settings">
+        <h2 class="h6 mb-3">AWS SSO settings</h2>
+        <div class="mb-3">
+          <label class="form-label">SSO start URL</label>
+          <input class="form-control" value="{{ aws_config.get('sso_start_url', '') }}" disabled>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">SSO region</label>
+          <input class="form-control" value="{{ aws_config.get('sso_region', '') }}" disabled>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="sso_account_id">AWS account</label>
+          <select class="form-select" id="sso_account_id" name="sso_account_id">
+            <option value="266435978772" {% if aws_config.get('sso_account_id') == '266435978772' %}selected{% end %}>266435978772 - root</option>
+            <option value="783960388360" {% if aws_config.get('sso_account_id') == '783960388360' %}selected{% end %}>783960388360 - development</option>
+            <option value="968077439457" {% if aws_config.get('sso_account_id') == '968077439457' %}selected{% end %}>968077439457 - staging</option>
+            <option value="294960493037" {% if aws_config.get('sso_account_id') == '294960493037' %}selected{% end %}>294960493037 - production</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="sso_role_name">SSO role name</label>
+          <input class="form-control" id="sso_role_name" name="sso_role_name" placeholder="AdministratorAccess" value="{{ aws_config.get('sso_role_name', '') }}">
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <button type="button" id="aws-sso-login" class="btn btn-outline-primary">Login with AWS SSO</button>
+          <span id="aws-sso-status" class="text-muted">
+            {% if aws_config.get('sso_access_token') %}SSO token saved for this Flower process.{% end %}
+          </span>
+        </div>
+        <p class="text-muted mt-2 mb-0">
+          Save the settings first, then use this button to open the AWS SSO device login and grant Flower ECS access.
+        </p>
       </div>
       <p class="text-muted mb-3">
-        Credentials are resolved using boto3's default credential chain, such as IAM roles, environment variables, or shared AWS credentials.
-        Settings are stored in memory only and must be re-entered after Flower restarts.
+        SSO uses an IAM Identity Center device login and exchanges it directly for role credentials.
+        Settings and SSO tokens are stored in memory only and must be re-entered after Flower restarts.
       </p>
       <button type="submit" class="btn btn-primary btn-modern">Save AWS settings</button>
     </form>

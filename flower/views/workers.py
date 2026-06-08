@@ -70,17 +70,20 @@ class WorkersView(BaseHandler):
                 workers.pop(name)
 
         queues = await self._queue_lengths()
-        queued_tasks = sum(self._messages_count(queue) for queue in queues)
+        queue_breakdown = self._queue_breakdown(queues)
+        queued_tasks = sum(queue['queued'] for queue in queue_breakdown)
 
         if json:
             self.write(dict(data=list(workers.values()),
                             active_queues=queues,
-                            queued_tasks=queued_tasks))
+                            queued_tasks=queued_tasks,
+                            queue_breakdown=queue_breakdown))
         else:
             self.render("workers.html",
                         workers=workers,
                         active_queues=queues,
                         queued_tasks=queued_tasks,
+                        queue_breakdown=queue_breakdown,
                         broker=self.application.capp.connection().as_uri(),
                         autorefresh=1 if self.application.options.auto_refresh else 0)
 
@@ -89,6 +92,90 @@ class WorkersView(BaseHandler):
         reserved = worker.get('reserved', []) or []
         scheduled = worker.get('scheduled', []) or []
         return len(reserved) + len(scheduled)
+
+    def _queue_breakdown(self, queues):
+        default_queue = self.capp.conf.task_default_queue
+        queue_names = {queue.get('name') for queue in queues if queue.get('name')}
+        queue_names.update(self.get_active_queue_names())
+        breakdown = {
+            name: {
+                'name': name,
+                'queued': 0,
+                'reserved_scheduled': 0,
+                'failed': 0,
+                'active': 0,
+            }
+            for name in queue_names
+        }
+
+        for queue in queues:
+            name = queue.get('name')
+            if not name:
+                continue
+            breakdown.setdefault(name, {
+                'name': name,
+                'queued': 0,
+                'reserved_scheduled': 0,
+                'failed': 0,
+                'active': 0,
+            })['queued'] = self._messages_count(queue)
+
+        for worker in self.application.workers.values():
+            for task in worker.get('active', []) or []:
+                self._increment_queue_count(
+                    breakdown, self._task_queue(task, default_queue), 'active')
+            for task in worker.get('reserved', []) or []:
+                self._increment_queue_count(
+                    breakdown, self._task_queue(task, default_queue),
+                    'reserved_scheduled')
+            for task in worker.get('scheduled', []) or []:
+                self._increment_queue_count(
+                    breakdown, self._task_queue(task, default_queue),
+                    'reserved_scheduled')
+
+        for task in self.application.events.state.tasks.values():
+            state = getattr(task, 'state', None)
+            if state == 'FAILURE':
+                self._increment_queue_count(
+                    breakdown, self._task_queue(task, default_queue), 'failed')
+
+        return sorted(breakdown.values(), key=lambda queue: queue['name'])
+
+    @staticmethod
+    def _increment_queue_count(breakdown, queue, key):
+        if not queue:
+            queue = 'unknown'
+        breakdown.setdefault(queue, {
+            'name': queue,
+            'queued': 0,
+            'reserved_scheduled': 0,
+            'failed': 0,
+            'active': 0,
+        })[key] += 1
+
+    @classmethod
+    def _task_queue(cls, task, default_queue=None):
+        if isinstance(task, dict):
+            request = task.get('request')
+            if isinstance(request, dict):
+                queue = cls._task_queue(request)
+                if queue:
+                    return queue
+            delivery_info = task.get('delivery_info') or {}
+            if isinstance(delivery_info, dict):
+                queue = delivery_info.get('queue') or delivery_info.get('routing_key')
+                if queue:
+                    return queue
+            return task.get('queue') or task.get('routing_key') or default_queue
+
+        delivery_info = getattr(task, 'delivery_info', None) or {}
+        if isinstance(delivery_info, dict):
+            queue = delivery_info.get('queue') or delivery_info.get('routing_key')
+            if queue:
+                return queue
+        return (getattr(task, 'queue', None) or
+                getattr(task, 'routing_key', None) or
+                default_queue)
 
     @staticmethod
     def _messages_count(queue):

@@ -397,6 +397,23 @@ var flower = (function () {
         $('#failed-tasks-summary').text(failedTasks);
     }
 
+    function escapeHtml(value) {
+        return $('<div>').text(value || '').html();
+    }
+
+    function updateQueueBreakdown(queues) {
+        var rows = (queues || []).map(function (queue) {
+            return '<div class="row g-2 py-2 border-top align-items-center">' +
+                '<div class="col-md-4 fw-semibold">' + escapeHtml(queue.name || 'unknown') + '</div>' +
+                '<div class="col-6 col-md-2 text-md-center"><span class="d-md-none text-muted">Queued: </span>' + numberOrZero(queue.queued) + '</div>' +
+                '<div class="col-6 col-md-2 text-md-center"><span class="d-md-none text-muted">Reserved/Scheduled: </span>' + numberOrZero(queue.reserved_scheduled) + '</div>' +
+                '<div class="col-6 col-md-2 text-md-center"><span class="d-md-none text-muted">Failed: </span>' + numberOrZero(queue.failed) + '</div>' +
+                '<div class="col-6 col-md-2 text-md-center"><span class="d-md-none text-muted">Active: </span>' + numberOrZero(queue.active) + '</div>' +
+                '</div>';
+        });
+        $('#queue-breakdown-list').html(rows.join(''));
+    }
+
     function format_time(timestamp) {
         var time = $('#time').val(),
             prefix = time.startsWith('natural-time') ? 'natural-time' : 'time',
@@ -483,6 +500,7 @@ var flower = (function () {
                 },
                 dataSrc: function (json) {
                     updateWorkerSummary(json.data || [], json.queued_tasks, json.active_queues);
+                    updateQueueBreakdown(json.queue_breakdown || []);
                     return json.data || [];
                 }
             },
@@ -742,21 +760,188 @@ var flower = (function () {
 
     });
 
-    $('#ecs-scale-worker-service').on('click', function (event) {
+    function toggleAwsSsoSettings() {
+        var isSso = $('#auth_method').val() === 'sso';
+        $('#aws-sso-settings').toggle(isSso);
+    }
+
+    function setSelectOptions(selector, values, selected, placeholder) {
+        var options = [];
+        if (placeholder) {
+            options.push('<option value="">' + escapeHtml(placeholder) + '</option>');
+        }
+        (values || []).forEach(function (value) {
+            var selectedAttr = value === selected ? ' selected' : '';
+            options.push('<option value="' + escapeHtml(value) + '"' + selectedAttr + '>' + escapeHtml(value) + '</option>');
+        });
+        $(selector).html(options.join(''));
+    }
+
+    function loadAwsEcsServices(cluster, selectedService) {
+        if (!cluster) {
+            setSelectOptions('#ecs_service', [], '', 'Choose a cluster to load services');
+            return;
+        }
+        $('#aws-sso-status').text('Loading ECS services...');
+        $.ajax({
+            type: 'GET',
+            url: url_prefix() + '/api/aws/ecs/services',
+            dataType: 'json',
+            data: {cluster: cluster},
+            success: function (data) {
+                setSelectOptions('#ecs_service', data.services || [], selectedService, 'Choose an ECS service');
+                $('#aws-sso-status').text('ECS services loaded');
+            },
+            error: function (data) {
+                $('#aws-sso-status').text('Failed to load ECS services');
+                show_alert(data.responseText, 'danger');
+            }
+        });
+    }
+
+    function loadAwsEcsClusters() {
+        var selectedCluster = $('#ecs_cluster').val();
+        var selectedService = $('#ecs_service').val();
+        $('#aws-sso-status').text('Loading ECS clusters...');
+        $.ajax({
+            type: 'GET',
+            url: url_prefix() + '/api/aws/ecs/clusters',
+            dataType: 'json',
+            success: function (data) {
+                setSelectOptions('#ecs_cluster', data.clusters || [], selectedCluster, 'Choose an ECS cluster');
+                $('#aws-sso-status').text('ECS clusters loaded');
+                var cluster = $('#ecs_cluster').val();
+                if (cluster) {
+                    loadAwsEcsServices(cluster, selectedService);
+                }
+            },
+            error: function (data) {
+                $('#aws-sso-status').text('Failed to load ECS clusters');
+                show_alert(data.responseText, 'danger');
+            }
+        });
+    }
+
+    function completeAwsSsoLogin(interval) {
+        setTimeout(function () {
+            $.ajax({
+                type: 'POST',
+                url: url_prefix() + '/api/aws/sso/complete',
+                dataType: 'json',
+                success: function (data) {
+                    if (data.pending) {
+                        $('#aws-sso-status').text(data.message || 'Waiting for AWS SSO authorization');
+                        completeAwsSsoLogin(data.interval || interval || 5);
+                        return;
+                    }
+                    $('#aws-sso-status').text(data.message || 'AWS SSO login complete');
+                    show_alert(data.message || 'AWS SSO login complete', 'success');
+                    loadAwsEcsClusters();
+                },
+                error: function (data) {
+                    if (data.status === 202) {
+                        var response = data.responseJSON || {};
+                        $('#aws-sso-status').text(response.message || 'Waiting for AWS SSO authorization');
+                        completeAwsSsoLogin(response.interval || interval || 5);
+                        return;
+                    }
+                    $('#aws-sso-status').text('AWS SSO login failed');
+                    show_alert(data.responseText, 'danger');
+                }
+            });
+        }, (interval || 5) * 1000);
+    }
+
+    $('#auth_method').on('change', toggleAwsSsoSettings);
+    $('#ecs_cluster').on('change', function () {
+        loadAwsEcsServices($(this).val(), $('#ecs_service').val());
+    });
+    toggleAwsSsoSettings();
+    if ($('#ecs_cluster').length) {
+        loadAwsEcsClusters();
+    }
+
+    $('#aws-sso-login').on('click', function (event) {
         event.preventDefault();
         event.stopPropagation();
+        $('#aws-sso-status').text('Starting AWS SSO login...');
 
+        $.ajax({
+            type: 'POST',
+            url: url_prefix() + '/api/aws/sso/start',
+            dataType: 'json',
+            data: $(this).closest('form').serialize(),
+            success: function (data) {
+                var loginUrl = data.verification_uri_complete || data.verification_uri;
+                if (loginUrl) {
+                    window.open(loginUrl, '_blank');
+                }
+                $('#aws-sso-status').text('Complete AWS SSO login. Code: ' + data.user_code);
+                show_alert('AWS SSO login opened. Enter code ' + data.user_code + ' if prompted.', 'info');
+                completeAwsSsoLogin(data.interval || 5);
+            },
+            error: function (data) {
+                $('#aws-sso-status').text('AWS SSO login failed');
+                show_alert(data.responseText, 'danger');
+            }
+        });
+    });
+
+    function updateAwsEcsWorkerServiceStatus(data) {
+        var desiredCount = data.desired_count;
+        if (desiredCount === undefined) {
+            desiredCount = data.new_desired_count;
+        }
+        $('#ecs-worker-service-status').text('ECS desired workers: ' + desiredCount);
+        $('#ecs-scale-down-worker-service').prop('disabled', desiredCount <= 1);
+    }
+
+    function loadAwsEcsWorkerServiceStatus() {
+        if (!$('#ecs-worker-service-status').length) {
+            return;
+        }
+        $.ajax({
+            type: 'GET',
+            url: url_prefix() + '/api/aws/ecs/worker-service',
+            dataType: 'json',
+            success: updateAwsEcsWorkerServiceStatus,
+            error: function (data) {
+                $('#ecs-worker-service-status').text('ECS desired workers: unavailable');
+                $('#ecs-scale-down-worker-service').prop('disabled', true);
+                show_alert(data.responseText, "danger");
+            }
+        });
+    }
+
+    function scaleAwsEcsWorkerService(direction) {
         $.ajax({
             type: 'POST',
             url: url_prefix() + '/api/aws/ecs/scale-worker-service',
             dataType: 'json',
+            data: {direction: direction},
             success: function (data) {
+                updateAwsEcsWorkerServiceStatus(data);
                 show_alert(data.message, "success");
             },
             error: function (data) {
                 show_alert(data.responseText, "danger");
+                loadAwsEcsWorkerServiceStatus();
             }
         });
+    }
+
+    $('#ecs-scale-up-worker-service').on('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        scaleAwsEcsWorkerService('up');
     });
+
+    $('#ecs-scale-down-worker-service').on('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        scaleAwsEcsWorkerService('down');
+    });
+
+    loadAwsEcsWorkerServiceStatus();
 
 }(jQuery));

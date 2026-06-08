@@ -17,8 +17,10 @@
       <h1 class="page-title">Workers</h1>
       <p class="page-subtitle mb-0">Monitor worker health, broker queue depth, throughput, and reserved tasks in real time.</p>
     </div>
-    <div class="d-flex gap-2 flex-wrap justify-content-end">
-      <button id="ecs-scale-worker-service" class="btn btn-primary btn-modern" type="button">Scale ECS worker service</button>
+    <div class="d-flex gap-2 flex-wrap justify-content-end align-items-center">
+      <span id="ecs-worker-service-status" class="text-muted">ECS desired workers: loading...</span>
+      <button id="ecs-scale-down-worker-service" class="btn btn-outline-primary btn-modern" type="button" disabled>Scale down workers</button>
+      <button id="ecs-scale-up-worker-service" class="btn btn-primary btn-modern" type="button">Scale up workers</button>
       <button id="worker-refresh-all" class="btn btn-primary btn-modern" type="button">Refresh workers</button>
     </div>
   </div>
@@ -64,6 +66,29 @@
           <div id="failed-tasks-summary" class="summary-value">{{ failed_tasks }}</div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="workers-table-card mb-3 p-3">
+    <h2 class="h5 mb-1">Queue breakdown</h2>
+    <p class="text-muted mb-3">Queued, reserved/scheduled, failed, and active tasks by queue.</p>
+    <div class="row g-2 fw-bold text-muted d-none d-md-flex">
+      <div class="col-md-4">Queue</div>
+      <div class="col-md-2 text-center">Queued</div>
+      <div class="col-md-2 text-center">Reserved/Scheduled</div>
+      <div class="col-md-2 text-center">Failed</div>
+      <div class="col-md-2 text-center">Active</div>
+    </div>
+    <div id="queue-breakdown-list">
+      {% for queue in queue_breakdown %}
+      <div class="row g-2 py-2 border-top align-items-center">
+        <div class="col-md-4 fw-semibold">{{ queue.get('name', 'unknown') }}</div>
+        <div class="col-6 col-md-2 text-md-center"><span class="d-md-none text-muted">Queued: </span>{{ queue.get('queued', 0) }}</div>
+        <div class="col-6 col-md-2 text-md-center"><span class="d-md-none text-muted">Reserved/Scheduled: </span>{{ queue.get('reserved_scheduled', 0) }}</div>
+        <div class="col-6 col-md-2 text-md-center"><span class="d-md-none text-muted">Failed: </span>{{ queue.get('failed', 0) }}</div>
+        <div class="col-6 col-md-2 text-md-center"><span class="d-md-none text-muted">Active: </span>{{ queue.get('active', 0) }}</div>
+      </div>
+      {% end %}
     </div>
   </div>
 
