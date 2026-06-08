@@ -46,7 +46,7 @@ class AwsView(BaseHandler):
 
         if errors:
             self.set_status(400)
-            self.render("aws.html", aws_config=config, errors=errors)
+            self.render("aws.html", aws_config=config, saved=False, errors=errors)
             return
 
         current_config = self._aws_config()

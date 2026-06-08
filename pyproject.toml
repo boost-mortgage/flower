@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flower"
+version = "2.0.0"
+description = "Celery Flower"
+readme = "README.rst"
+requires-python = ">=3.7"
+license = {text = "BSD"}
+authors = [
+  {name = "Mher Movsisyan", email = "mher.movsisyan@gmail.com"},
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: BSD License",
+  "Topic :: System :: Distributed Computing",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.7",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  "celery>=5.0.5",
+  "tornado>=5.0.0,<7.0.0",
+  "prometheus_client>=0.8.0",
+  "humanize",
+  "pytz",
+  "boto3",
+]
+
+[project.urls]
+Homepage = "https://github.com/mher/flower"
+
+[project.entry-points."celery.commands"]
+flower = "flower.command:flower"
+
+[project.optional-dependencies]
+dev = [
+  "mock",
+  "redis>=4.3.6",
+  "pylint",
+]
+docs = [
+  "Sphinx",
+  "sphinxcontrib-fulltoc",
+  "sphinxcontrib-httpdomain",
+  "sphinxcontrib-redoc",
+]
+
+[tool.setuptools.packages.find]
+exclude = ["tests", "tests.*"]
+
+[tool.setuptools.package-data]
+flower = ["templates/*", "static/*.*", "static/**/*.*", "static/**/**/*.*"]

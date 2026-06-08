@@ -48,6 +48,14 @@ The development version can be installed from Github ::
 
     $ pip install https://github.com/mher/flower/zipball/master#egg=flower
 
+Development
+-----------
+
+This project uses `uv <https://docs.astral.sh/uv/>`_ for local development ::
+
+    $ uv sync --extra dev
+    $ uv run python -m tests.unit
+
 Usage
 -----
 
